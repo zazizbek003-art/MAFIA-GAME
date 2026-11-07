@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Mafia</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bitter:wght@700;800&display=swap">
+<style>
+:root{--bg:#dfe7ec;--fg:#1b2430;--ac:#b3261e;--acf:#fff;--card:#f4f8fa;--line:#b9c6cf;--mut:#53606c;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root{--bg:#1a2230;--fg:#e6ebf0;--card:#243044;--line:#3a4960;--mut:#9aa8b8;--ac:#ff6b5f;--acf:#1a1010}}
+body.night{--bg:#0e1124;--fg:#e8eaf4;--ac:#f0b24b;--acf:#1c1405;--card:#1a1f3a;--line:#2e3560;--mut:#9aa0c4}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:var(--bg);color:var(--fg);font:17px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;transition:background .5s,color .5s}
+#app{max-width:520px;margin:0 auto;padding:22px 18px 40px}
+h1,h2{font-family:Bitter,Georgia,serif;font-weight:800;line-height:1.15;margin:0 0 12px}
+h1{font-size:44px;letter-spacing:-1px}h2{font-size:27px}
+p{margin:0 0 14px}.mut{color:var(--mut);font-size:15px}
+.big{font-size:64px;text-align:center;margin:10px 0}
+.b{display:block;width:100%;padding:15px;margin:10px 0;border:0;border-radius:14px;background:var(--ac);color:var(--acf);font:700 17px inherit;font-family:inherit;cursor:pointer}
+.b.alt{background:transparent;color:var(--fg);border:2px solid var(--line)}
+.b:disabled{opacity:.4}
+.b:focus-visible,.pl:focus-visible,input:focus-visible{outline:3px solid var(--ac);outline-offset:2px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.pl{padding:13px 8px;border-radius:9px;border:2px solid var(--line);background:var(--card);color:var(--fg);font:600 16px inherit;font-family:inherit;cursor:pointer;word-break:break-word}
+.pl.sel{border-color:var(--ac);background:var(--ac);color:var(--acf)}
+.pl:disabled{opacity:.35}
+.row{display:flex;gap:8px}.row input{flex:1;min-width:0;padding:13px;border-radius:9px;border:2px solid var(--line);background:var(--card);color:var(--fg);font:16px inherit;font-family:inherit}
+.row .b{width:auto;margin:0;padding:13px 18px}
+.chip{display:inline-flex;gap:6px;align-items:center;padding:8px 12px;margin:4px 4px 0 0;border-radius:99px;background:var(--card);border:1px solid var(--line)}
+.chip button{background:none;border:0;color:var(--mut);font-size:18px;cursor:pointer;padding:0 2px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dead{text-decoration:line-through;opacity:.55}
+@media (prefers-reduced-motion:reduce){body{transition:none}}
+</style>
+</head>
+<body class="day">
+<main id="app"></main>
+<script>
+var RL={don:{n:"Don",e:"🎩",d:"Mafia boshlig’i. Tunda oxirgi qarorni siz berasiz. Komissar tekshirsa — Don ekaningiz ochiladi.",m:1},
+maf:{n:"Mafia",e:"🔪",d:"Sheriklaringiz bilan har tunda bitta qurbon tanlaysiz. Kunduzi oddiy aholidek tuting.",m:1},
+doc:{n:"Shifokor",e:"💉",d:"Har tunda bittasini o’limdan saqlaysiz. Ketma-ket bir odamni emas. O’zingizni — bir marta."},
+com:{n:"Komissar",e:"🕵️",d:"Har tunda tanlaysiz: bitta odamni tekshirish (haqiqiy roli sizga ochiladi) yoki unga o’q uzish."},
+bod:{n:"Tansoqchi",e:"🛡",d:"Bitta odamni qo’riqlaysiz: unga otilsa, o’qni o’zingiz olasiz."},
+ser:{n:"Serjant",e:"👮",d:"Komissar yordamchisi: uning tekshiruvlarini ko’rasiz. U o’lsa — o’rniga o’tasiz."},
+man:{n:"Manyak",e:"🪓",d:"Yolg’iz o’ynaysiz: har tunda bittasini o’ldirasiz. Hammani yengsangiz — yutasiz."},
+civ:{n:"Tinch aholi",e:"👥",d:"Kunduzi muhokama qilib, mafiyani toping va ovoz bilan osing."}};
+var S={names:[]},app=document.getElementById("app");
+function esc(s){return s.replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function R(h,t){document.body.className=t||"day";app.innerHTML=h;window.scrollTo(0,0)}
+function rl(i){var r=RL[S.p[i].r];return r.e+" "+r.n}
+function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)),t=a[i];a[i]=a[j];a[j]=t}return a}
+function alive(){return S.p.map(function(p,i){return i}).filter(function(i){return S.p[i].a})}
+
+/* SETUP */
+function setup(){
+ var n=S.names.length;
+ R('<h1>Mafia</h1><p class="mut">Bitta telefon, hamma birga. O’yinchilarni qo’shing (kamida 5 ta).</p>'+
+ '<div class="row"><input id="nm" placeholder="Ism" maxlength="14" autocomplete="off"><button class="b" onclick="addName()">Qo’shish</button></div>'+
+ '<div>'+S.names.map(function(x,i){return '<span class="chip">'+esc(x)+'<button aria-label="O’chirish" onclick="delName('+i+')">×</button></span>'}).join("")+'</div>'+
+ '<p class="mut" style="margin-top:14px">'+n+' ta o’yinchi</p>'+
+ '<button class="b" '+(n<5?"disabled":"")+' onclick="start()">O’yinni boshlash</button>'+
+ '<details class="box"><summary><b>Qoidalar</b></summary><p style="margin-top:10px">Tunda mafia qurbon tanlaydi, shifokor davolaydi, komissar tekshiradi yoki o’q uzadi. Kunduzi hamma muhokama qiladi va ovoz bilan bittasini osadi. Mafia qolmasa — aholi yutadi. Mafia aholiga tenglashsa — mafia yutadi. Rollar o’yinchilar soniga qarab avtomatik beriladi.</p></details>');
+ document.getElementById("nm").addEventListener("keydown",function(e){if(e.key==="Enter")addName()});
+}
+function addName(){var v=document.getElementById("nm").value.trim();if(v&&S.names.indexOf(v)<0&&S.names.length<20)S.names.push(v);setup();document.getElementById("nm").focus()}
+function delName(i){S.names.splice(i,1);setup()}
+
+function start(){
+ var n=S.names.length,k=Math.max(1,Math.floor(n/4)),l=["don","doc","com"],i;
+ for(i=1;i<k;i++)l.push("maf");
+ if(n>=7)l.push("bod");if(n>=8)l.push("ser");if(n>=9)l.push("man");
+ while(l.length<n)l.push("civ");
+ shuffle(l);
+ S.p=S.names.map(function(x,i){return{n:x,r:l[i],a:1}});
+ S.night=0;S.lastHeal=-1;S.selfUsed=0;S.ri=0;reveal(0);
+}
+
+/* ROLE REVEAL */
+function reveal(st){
+ if(S.ri>=S.p.length){return startNight()}
+ var p=S.p[S.ri];
+ if(!st){R('<div class="big">📱</div><h2>Telefonni '+esc(p.n)+' ga bering</h2><p class="mut">Boshqalar qaramasin.</p><button class="b" onclick="reveal(1)">Men '+esc(p.n)+'man — rolimni ko’rish</button>')}
+ else{
+  var r=RL[p.r],mates="";
+  if(r.m){mates='<p><b>Mafia jamoasi:</b> '+S.p.filter(function(q){return RL[q.r].m}).map(function(q){return esc(q.n)+" ("+RL[q.r].n+")"}).join(", ")+'</p>'}
+  R('<div class="big">'+r.e+'</div><h2 style="text-align:center">'+r.n+'</h2><p>'+r.d+'</p>'+mates+'<button class="b" onclick="S.ri++;reveal(0)">Yashirish va keyingisi</button>');
+ }
+}
+
+/* NIGHT */
+function actor(k){
+ if(k==="maf")return S.p.findIndex(function(p){return p.a&&p.r==="don"})>=0?S.p.findIndex(function(p){return p.a&&p.r==="don"}):S.p.findIndex(function(p){return p.a&&p.r==="maf"});
+ return S.p.findIndex(function(p){return p.a&&p.r===k});
+}
+function startNight(){
+ S.night++;S.N={mode:"check"};
+ S.q=["doc","bod","com","maf","man","ser"].filter(function(k){return actor(k)>=0});
+ S.qi=0;
+ R('<div class="big">🌙</div><h2 style="text-align:center">'+S.night+'-tun</h2><p style="text-align:center">Shahar uxlaydi. Hamma ko’zini yumsin.</p><button class="b" onclick="step(0)">Davom etish</button>',"night");
+}
+function step(st){
+ var k=S.q[S.qi];if(!k)return resolve();
+ var a=actor(k);
+ if(!st){R('<div class="big">📱</div><h2 style="text-align:center">Telefonni '+esc(S.p[a].n)+' ga bering</h2><p class="mut" style="text-align:center">Boshqalar ko’zini yumib turadi.</p><button class="b" onclick="step(1)">Men '+esc(S.p[a].n)+'man</button>',"night");return}
+ var t="",ex=[],note="",extra="";
+ if(k==="doc"){t="Kimni davolaysiz?";ex=[S.lastHeal];if(S.selfUsed)ex.push(a)}
+ else if(k==="bod"){t="Kimni qo’riqlaysiz?";ex=[a]}
+ else if(k==="com"){t="Tanlang";ex=[a];extra='<div class="seg"><button class="pl '+(S.N.mode==="check"?"sel":"")+'" onclick="S.N.mode=\'check\';step(1)">🔍 Tekshirish</button><button class="pl '+(S.N.mode==="shoot"?"sel":"")+'" onclick="S.N.mode=\'shoot\';step(1)">🔫 O’q uzish</button></div>'}
+ else if(k==="maf"){t="Mafia qurbonni tanlaydi";S.p.forEach(function(q,i){if(RL[q.r].m)ex.push(i)});note='<p class="mut">'+(S.p[a].r==="don"?"Siz Donsiz — oxirgi qaror sizniki.":"Don o’lgan — qaror sizniki.")+'</p>'}
+ else if(k==="man"){t="Kimni o’ldirasiz?";ex=[a]}
+ else if(k==="ser"){
+  var c=S.N.check;
+  R('<div class="big">👮</div><h2>Serjant</h2><div class="box">'+(c?'Komissar <b>'+esc(S.p[c.i].n)+'</b> ni tekshirdi: <b>'+rl(c.i)+'</b>':'Bu tun komissar hech kimni tekshirmadi.')+'</div><button class="b" onclick="S.qi++;step(0)">Tushunarli</button>',"night");return;
+ }
+ R('<h2>'+RL[S.p[a].r].e+' '+t+'</h2>'+note+extra+'<div class="grid">'+alive().map(function(i){return '<button class="pl" '+(ex.indexOf(i)>=0?"disabled":"")+' onclick="choose(\''+k+'\','+i+')">'+esc(S.p[i].n)+'</button>'}).join("")+'</div>',"night");
+}
+function choose(k,i){
+ var N=S.N;
+ if(k==="doc"){N.heal=i;S.lastHeal=i;if(i===actor("doc"))S.selfUsed=1}
+ else if(k==="bod")N.guard=i;
+ else if(k==="maf")N.kill=i;
+ else if(k==="man")N.man=i;
+ else if(k==="com"){
+  if(N.mode==="shoot")N.shoot=i;
+  else{N.check={i:i};
+   R('<div class="big">🔍</div><h2>Natija</h2><div class="box"><b>'+esc(S.p[i].n)+'</b> — <b>'+rl(i)+'</b></div><button class="b" onclick="S.qi++;step(0)">Esladim, yashirish</button>',"night");return}
+ }
+ S.qi++;step(0);
+}
+function resolve(){
+ var N=S.N,dead=[],bi=actor("bod");
+ [N.kill,N.man,N.shoot].forEach(function(t){
+  if(t==null)return;
+  if(N.guard!=null&&t===N.guard&&bi>=0)t=bi;
+  if(t===N.heal)return;
+  if(dead.indexOf(t)<0)dead.push(t);
+ });
+ var comWas=dead.some(function(i){return S.p[i].r==="com"});
+ dead.forEach(function(i){S.p[i].a=0});
+ if(comWas){var si=actor("ser");if(si>=0)S.p[si].r="com"}
+ S.dead=dead;day();
+}
+
+/* DAY */
+function won(){
+ var a=alive(),M=a.filter(function(i){return RL[S.p[i].r].m}).length,Mn=a.some(function(i){return S.p[i].r==="man"}),o=a.length-M;
+ if(!a.length)return"Durang. Hamma halok bo’ldi.";
+ if(!M&&!Mn)return"👥 Tinch aholi yutdi!";
+ if(!M&&Mn&&a.length<=2)return"🪓 Manyak yutdi!";
+ if(!Mn&&M>=o)return"🔪 Mafia yutdi!";
+ return null;
+}
+function over(msg){
+ R('<div class="big">🏁</div><h2 style="text-align:center">'+msg+'</h2><div class="box">'+S.p.map(function(p,i){return '<div class="'+(p.a?"":"dead")+'">'+esc(p.n)+' — '+rl(i)+'</div>'}).join("")+'</div><button class="b" onclick="start()">Qayta o’ynash (yangi rollar)</button><button class="b alt" onclick="setup()">Ro’yxatni o’zgartirish</button>');
+}
+function day(){
+ var d=S.dead,h='<div class="big">☀️</div><h2 style="text-align:center">'+S.night+'-tong</h2>';
+ if(!d.length)h+='<div class="box">Bu tun hech kim o’lmadi.</div>';
+ else h+='<div class="box">Bu tun o’ldi:'+d.map(function(i){return '<p style="margin:8px 0 0"><b>'+esc(S.p[i].n)+'</b> — '+rl(i)+'</p>'}).join("")+'</div>';
+ var w=won();
+ if(w){R(h+'<button class="b" onclick="over(\''+w+'\')">Natijani ko’rish</button>');return}
+ R(h+'<p>Hamma muhokama qilsin. Tayyor bo’lgach, ovoz berishga o’ting.</p><button class="b" onclick="vote()">Ovoz berish</button>');
+}
+function vote(){
+ S.sel=null;drawVote();
+}
+function drawVote(){
+ R('<h2>Kimni osamiz?</h2><p class="mut">Ko’pchilik ovoz bergan o’yinchini tanlang.</p><div class="grid">'+alive().map(function(i){return '<button class="pl '+(S.sel===i?"sel":"")+'" onclick="S.sel='+i+';drawVote()">'+esc(S.p[i].n)+'</button>'}).join("")+'</div><button class="b" '+(S.sel==null?"disabled":"")+' onclick="hang()">Osish</button><button class="b alt" onclick="S.sel=null;hang()">Hech kimni osmaslik</button>');
+}
+function hang(){
+ var h='<div class="big">⚖️</div>',i=S.sel;
+ if(i==null)h+='<h2 style="text-align:center">Hech kim osilmadi</h2>';
+ else{
+  S.p[i].a=0;
+  var comWas=S.p[i].r==="com",rr=rl(i);
+  if(comWas){var si=actor("ser");if(si>=0)S.p[si].r="com"}
+  h+='<h2 style="text-align:center">'+esc(S.p[i].n)+' osildi</h2><div class="box">Roli: <b>'+rr+'</b></div>';
+ }
+ var w=won();
+ R(h+(w?'<button class="b" onclick="over(\''+w+'\')">Natijani ko’rish</button>':'<button class="b" onclick="startNight()">Tunga o’tish 🌙</button>'));
+}
+setup();
+</script>
+</body>
+</html>
